@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+
+<html>
+
+<head>
+<style>
+#info {
+	position: absolute;
+	top: 0px;
+	width: 100%;
+	padding: 10px;
+	text-align: center;
+	color: #ffff00
+}
+
+body {
+	overflow: hidden;
+}
+</style>
+</head>
+
+<body> 
+<div id="info">Collision Part 0
+</div>
+<audio id="collisionsound" style="display:none">
+<source src="sounds/collision3.wav" type='audio/wav'>
+</audio>
+
+<audio id="soundtrack" autoplay loop style="display:none">
+<source src="sounds/KennyG.mp3" type='audio/mp3'>
+</audio>
+<script src="https://jyunming-chen.github.io/tutsplus/js/KeyboardState.js"></script>
+<script src="http://cdnjs.cloudflare.com/ajax/libs/three.js/r70/three.min.js"></script>
+<script>
+
+var camera, scene, renderer;
+var satellite, angle = 0;
+var mousePoint;
+var mouse = new THREE.Vector2();
+//var stats;
+var pos, vel, force;
+var clock = new THREE.Clock();
+var ball;
+var stArray = [];
+var counter = 0;
+var keyboard = new KeyboardState();
+var baseS = 0,base1 = 0;
+var ballR = 3;
+init();
+animate();
+
+
+function height(x) {
+	if (x < 0) {
+		return -20;
+	} 
+	if (x > 0) {
+		if (x%100>-1&&x%100<81){
+			return -40;
+		}
+		return -20;
+	} 
+}
+function setUpStArray() {
+
+	for (var i = 0; i < 5; i++) {
+		var row = [];
+		for (var j = 0; j < 3; j++)
+			row.push(new THREE.Vector2(j * 0.5, 1 - 0.25 * i));
+		stArray.push(row);
+	}
+}
+
+
+function init() {
+	renderer = new THREE.WebGLRenderer({antialias: true});
+
+	pos = new THREE.Vector3(-20, 40, 0);
+	vel = new THREE.Vector3(0, 0, 0);
+	//force = new THREE.Vector3(0, -90, 0);
+
+	/*
+	// STATS
+	stats = new Stats();
+	stats.domElement.style.position = 'absolute';
+	stats.domElement.style.top = '0px';
+	stats.domElement.style.zIndex = 100;
+	document.body.appendChild( stats.domElement );	
+	*/
+	renderer.setSize(window.innerWidth, window.innerHeight);
+	//renderer.setClearColor(0x888888);
+	document.body.appendChild(renderer.domElement);
+
+	scene = new THREE.Scene();
+	camera = new THREE.OrthographicCamera(-50, 50, 50, -50, -10, 100);
+	camera.position.z = 10;
+	scene.add(camera);
+
+	for (var i = 0; i < 5; i++) {
+		THREE.ImageUtils.crossOrigin = '';
+		var background = THREE.ImageUtils.loadTexture('http://i.imgur.com/DflIsvZ.jpg');
+		background.wrapS = THREE.RepeatWrapping;
+		background.wrapX = THREE.RepeatWrapping;
+		// setting up texMat
+		var texMat = new THREE.MeshBasicMaterial({map: background});
+		var floor = new THREE.Mesh(new THREE.PlaneGeometry(250, 100), texMat);
+		floor.position.x = i * 250;
+		scene.add(floor);
+		var ground = new THREE.Mesh(new THREE.PlaneGeometry(250, 50), new THREE.MeshBasicMaterial({color: 0x0000ff}));
+		scene.add(ground);
+		ground.position.y = -65;
+		ground.position.x = 250*i;
+		
+		//ground.position.x = 250*i;
+		
+	}
+	for(var j=0;j<64;j++){
+		var block = new THREE.Mesh(new THREE.PlaneGeometry(50, 50), new THREE.MeshBasicMaterial({color: 0x0000ff})); 
+		block.position.y = -45;
+		block.position.x=-25;
+		scene.add(block);
+		
+		block = new THREE.Mesh(new THREE.PlaneGeometry(20, 50), new THREE.MeshBasicMaterial({color: 0x0000ff})); 
+		block.position.y = -45;
+		block.position.x = -10+100*j;
+		scene.add(block);
+	}
+	setUpStArray();
+
+	// loading texture from imgur.com
+	THREE.ImageUtils.crossOrigin = '';
+	texture = THREE.ImageUtils.loadTexture('https://i.imgur.com/Y4nxLui.png');
+	texture.wrapS = THREE.RepeatWrapping;
+
+	// setting up texMat
+	var texMat = new THREE.MeshBasicMaterial({
+	map: texture,
+	transparent: true, // cutout texture: set transparent: true
+	side: THREE.DoubleSide
+	});
+
+	var geometry = new THREE.Geometry();
+	geometry.vertices.push(
+	new THREE.Vector3(-15, -15, 0),
+	new THREE.Vector3(15, -15, 0),
+	new THREE.Vector3(15, 15, 0),
+	new THREE.Vector3(-15, 15, 0)
+	);
+
+	var face;
+	face = new THREE.Face3(0, 1, 2);
+	geometry.faces.push(face);
+	face = new THREE.Face3(0, 2, 3);
+	geometry.faces.push(face);
+
+	geometry.faceVertexUvs[0].push([stArray[1][0], stArray[1][1], stArray[0][1]]);
+	geometry.faceVertexUvs[0].push([stArray[1][0], stArray[0][1], stArray[0][0]]);
+
+	geometry.computeBoundingSphere();
+	geometry.computeFaceNormals();
+	geometry.computeVertexNormals();
+
+	sprite = new THREE.Mesh(geometry, texMat);
+	scene.add(sprite);
+
+
+	// what's in the scene? [depth]
+	// bordere (blue lines) [0]
+	// satellite (white circle) [1]
+	// mousePoint (red circle) [2]
+	// background (dark yellow quad) [3]
+	//
+	// all on XY plane: rely on polygonOffset to sort things out
+	// line object remains at frontmost
+
+	////////////////////////////////////////////////////////////////////////////////////////////
+	/*ball = new THREE.Mesh(new THREE.CircleGeometry(ballR, 20), new THREE.MeshBasicMaterial({
+	color: 0xffffff
+	}));
+	scene.add(ball);
+	ball.position.y = 30;*/
+
+	/* var ground = new THREE.Mesh(new THREE.PlaneGeometry(500, 50), new THREE.MeshBasicMaterial({
+	color: 0xff0000
+	}));
+	scene.add(ground);
+	ground.position.y = -25;
+	ground.position.x = 175;  // this is WRong!!!
+	*/
+	window.addEventListener('resize', onWindowResize, false);
+
+	// window.addEventListener('mousedown', onDocumentMouseDown, false);
+}
+
+function onWindowResize() {
+	camera.aspect = window.innerWidth / window.innerHeight;
+	camera.updateProjectionMatrix();
+	renderer.setSize(window.innerWidth, window.innerHeight);
+}
+
+function onDocumentMouseDown(event) {
+	event.preventDefault();
+	// NDC: [-1,1]x[-1,1]
+	mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+	mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+
+	console.log(mouse.x + ', ' + mouse.y);
+
+	if (event.button === 2) { // left button (0), right (2)
+		vel.y += 40;
+	}
+}
+
+function spriteAnimate() {
+	var geometry = sprite.geometry;
+	var st0 = stArray[base1 + 1][baseS];
+	var st1 = stArray[base1 + 1][baseS + 1];
+	var st2 = stArray[base1][baseS + 1];
+	var st3 = stArray[base1][baseS];
+	if (baseS === 1) {
+		base1 = (base1 + 1) % 4;                 
+	}
+	geometry.faceVertexUvs[0] = [];
+	geometry.faceVertexUvs[0].push([st0, st1, st2]);
+	geometry.faceVertexUvs[0].push([st0, st2, st3]);
+	geometry.uvsNeedUpdate = true;
+
+	baseS = (baseS + 1) % 2;
+
+}
+
+
+function animate() {
+
+	counter++;
+	if (counter % 6 === 0){
+		spriteAnimate();
+	}
+
+
+	var dt = clock.getDelta();
+	if (keyboard.down('up')) {
+		vel.y += 40;
+	}
+	keyboard.update();
+	if (keyboard.down('right')) {
+	//camera.position.x += 10;
+		if (pos.x >= 1100) vel.x = 0;
+		else vel.x = 30;
+	}
+	if (keyboard.down('left')) {
+	//camera.position.x -= 10;
+		if (pos.x < -30) vel.x = 0;
+		else vel.x = -30;
+	}
+	if (keyboard.down('down')) {
+	//camera.position.x -= 10;  
+		vel.x = 0;
+	}
+
+	console.log(camera.position.x);
+
+
+// force: add gravity first
+	force = new THREE.Vector3(0, -90, 0);
+	if (pos.y <= 10 + height(pos.x)) { // if contact, add contact force
+		force.add(new THREE.Vector3(0, 90, 0));
+	}
+
+// then do Euler's
+	vel.add(force.clone().multiplyScalar(dt));
+	pos.add(vel.clone().multiplyScalar(dt));
+	sprite.position.copy(pos);
+
+	if (pos.x > camera.position.x + 30) {
+		camera.position.x = pos.x - 30;
+	}
+	if (pos.x < camera.position.x - 30) {
+		camera.position.x = pos.x + 30;
+	}
+	if (pos.x >= 1100) {
+		vel.x *= -0.53;
+		camera.position.x = 1100 - 30;
+		force.add(new THREE.Vector3(-500, 0, 0));
+	}
+	if (pos.x <= -30) {
+		vel.x *= -0.53;
+		camera.position.x = 0;
+		force.add(new THREE.Vector3(500, 0, 0));
+	}
+// collision
+// if (x-p).n < 0 then hit
+/*
+if (pos.clone().sub(planeP).dot(planeN) < 0) {
+pos.y = 30;
+vel.set (0,0,0);
+}
+*/
+// bounce back
+	if (pos.y <= 10 + height(pos.x)) {
+		pos.y = 10 + height(pos.x);
+		vel.y *= -0.3;
+	}
+	var sign = (vel.x) > 0 ? +1 : -1;
+    if (height(pos.x)  < height(pos.x + 0.3*sign)){
+		vel.x = 0;
+		//vel.x *= -0.3;
+		//camera.position.x = 1100 - 30;
+		force.add(new THREE.Vector3(-300, 0, 0));
+	}   // blocked
+    	
+	requestAnimationFrame(animate);
+	render();
+}
+
+function render() {
+	renderer.render(scene, camera);
+}
+
+window.focus();
+</script>
+</body>
+
+</html>
