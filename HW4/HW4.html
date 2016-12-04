@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+
+<html>
+
+<head>
+<style>
+
+#info {
+	position: absolute;
+	top: 0px;
+	width: 100%;
+	padding: 10px;
+	text-align: center;
+	color: #ffff00
+}
+
+body {
+	overflow: hidden;
+}
+
+</style>
+</head>
+
+<body> 
+
+<div id="info">hw4</div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r70/three.min.js"></script>
+<script src="https://dl.dropboxusercontent.com/u/3587259/Code/Threejs/OrbitControls.js">
+
+
+</script>
+<script src="https://jyunming-chen.github.io/tutsplus/js/KeyboardState.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r70/three.min.js"></script>
+<script src="https://dl.dropboxusercontent.com/u/3587259/Code/Threejs/OrbitControls.js"></script>
+<script>
+var camera, scene, renderer, controls;
+var puck;
+var agent;
+var agents=[];
+var obstacle,obstacle1,obstacle2,obstacle3;
+var angle = 0;
+var targetCatch = false;
+var targetOmega = 0.3;
+
+var mass = 1;
+var clock = new THREE.Clock();
+var obRad = 30;
+var target = new THREE.Vector3();
+var raycaster;
+var mouse = new THREE.Vector2();
+var pickables = [];
+
+
+var Agent = function(mesh, initPos) {
+	this.pos = new THREE.Vector3();
+	if (initPos) this.pos.copy(initPos);
+
+	this.vel = new THREE.Vector3();
+	this.force = new THREE.Vector3();
+	this.target = new THREE.Vector3();
+	this.angle = 0
+	this.mesh = mesh.clone();
+	this.maxSpeed = 60;
+	this.maxForce = 60;
+	this.nbhd = [];
+	this.setTarget = function(target) {
+		this.target.copy(target);
+	}
+
+	this.update = function(dt) {
+	// compute force
+		this.force = this.target.clone().sub(this.pos).setLength(this.maxSpeed).sub(this.vel);
+		var tmp = obstacle.position.clone().sub(this.pos);
+		var tmp1 = obstacle1.position.clone().sub(this.pos);
+		var tmp2 = obstacle2.position.clone().sub(this.pos);
+		var tmp3 = obstacle3.position.clone().sub(this.pos);
+		var tmpProj = tmp.clone().projectOnVector(this.vel);
+		var tmpProj1 = tmp1.clone().projectOnVector(this.vel);
+		var tmpProj2 = tmp2.clone().projectOnVector(this.vel);
+		var tmpProj3 = tmp3.clone().projectOnVector(this.vel);
+		//console.log (tmp.dot(this.vel));
+
+		if (tmp.dot(this.vel) > 0) {
+			if (tmpProj.clone().sub(tmp).length() < obRad + 3) {
+				if (tmpProj.length() < 5 *this.vel.length()) {
+					//console.log ('block & close');
+					this.force.add (tmpProj.clone().sub(tmp).multiplyScalar(2));    	
+				}
+			}
+		}  
+		if (tmp1.dot(this.vel) > 0) {
+			if (tmpProj1.clone().sub(tmp1).length() < obRad + 3) {
+				if (tmpProj1.length() < 5 *this.vel.length()) {
+					this.force.add (tmpProj1.clone().sub(tmp1).multiplyScalar(2));    	
+				}
+			}
+		}  
+		if (tmp2.dot(this.vel) > 0) {
+			if (tmpProj2.clone().sub(tmp2).length() < obRad + 3) {
+				if (tmpProj2.length() < 5 *this.vel.length()) {
+					this.force.add (tmpProj2.clone().sub(tmp2).multiplyScalar(2));    	
+				}
+			}
+		}  
+		if (tmp3.dot(this.vel) > 0) {
+			if (tmpProj3.clone().sub(tmp3).length() < obRad + 3) {
+				if (tmpProj3.length() < 5 *this.vel.length()) {
+					this.force.add (tmpProj3.clone().sub(tmp3).multiplyScalar(2));    	
+				}
+			}
+		}  
+		// force clamping
+		if (this.force.length() > this.maxForce)
+			this.force.setLength(this.maxForce);
+		//this.vel.x+=this.cohesion.x*this.separation.x*this.alignment.x;//+this.alignment;
+		//this.vel.y+=this.cohesion.y*this.separation.y*this.alignment.y;//+this.alignment;
+
+		this.vel.add(this.force.clone().multiplyScalar(dt));
+
+		// velocity clamping
+		if (this.vel.length() > this.maxSpeed)
+			this.vel.setLength(this.maxSpeed);
+		this.pos.add(this.vel.clone().multiplyScalar(dt));
+
+		if (this.vel.length() > 0.001) {
+			this.angle = Math.atan2(-this.vel.z, this.vel.x);
+		}
+		this.mesh.position.copy(this.pos);
+		this.mesh.rotation.y = this.angle;
+
+		// catch handling
+		if (this.pos.distanceTo(this.target) < 2) {
+			this.vel.set(0, 0, 0);
+			angle = Math.random() * Math.PI * 2;
+		}
+
+	}
+}
+Agent.prototype = {
+	emptyNbdd: function() {
+		this.nbhd = [];
+	},
+	cohesion: function() {
+		var sumX=0,sumY=0,sumZ=0,sum=(0,0,0);
+		var avelX,avelY,avelZ,apos;
+		for(var i=0;i<this.nbhd.length;i++){
+			/*sumX+=this.nbhd[i].pos.x;
+			sumY+=this.nbhd[i].pos.y;
+			sumZ+=this.nbhd[i].pos.z;*/
+			sum+=this.nbhd[i].pos;
+		}
+		//avelX=sumX/this.nbhd.length;
+		//avelY=sumY/this.nbhd.length;
+		//avelZ=sumZ/this.nbhd.length;
+		apos=sum/this.nbhd.length;
+		this.pos=apos;
+		/*
+		this.pos.x=avelX;
+		this.pos.y=avelY;
+		this.pos.z=avelZ;*/
+		//this.vel=new Point(avelX-this.vel.x,avelY-this.vel.y);
+	},
+	// set pos as the average of my nbhd.pos
+	separation: function(){
+		var sumX=0,sumY=0,sumZ=0;
+		var X=0,Y=0,Z=0;
+		var sx,sy,sz;
+		var avelX,avelY;
+		for(var i=0;i<this.nbhd.length;i++){
+			sx=this.pos.x-this.nbhd[i].pos.x;
+			sy=this.pos.y-this.nbhd[i].pos.y;
+			sz=this.pos.z-this.nbhd[i].pos.z;
+			if(sx<0)sx*=-1;
+			if(sy<0)sy*=-1;
+			if(sz<0)sz*=-1;
+			sumX+=sx;
+			sumY+=sy;
+			sumZ+=sz;
+		}
+		
+		for(var i=0;i<this.nbhd.length;i++){
+			X+=1/(this.pos.x-this.nbhd[i].pos.x);
+			Y+=1/(this.pos.y-this.nbhd[i].pos.y);
+			Z+=1/(this.pos.z-this.nbhd[i].pos.z);
+		}
+		this.pos.x=this.pos.x+X*sumX/this.nbhd.length;
+		this.pos.y=this.pos.y+X*sumY/this.nbhd.length;
+		this.pos.z=this.pos.z+X*sumZ/this.nbhd.length;
+		//this.pos.x=aposX;
+		//this.pos.y=aposY;
+		
+	},
+	alignment: function(){
+		var sumX=0,sumY=0;
+		var avelX,avelY;
+		for(var i=0;i<this.nbhd.length;i++){
+			if(this.distanceFrom(agent)<100){
+				sumX+=this.nbhd[i].vel.x;
+				sumY+=this.nbhd[i].vel.y;
+			}
+		}
+		this.vel.x=sumX/this.nbhd.length;
+		this.vel.y=sumY/this.nbhd.length;
+		//this.vel.normal(1);
+		return this.vel;
+	}
+	
+	
+}
+
+function computeNbhd() {
+	var n = agents.length;  // number of agents
+	var R = 10;
+
+	// test it with n = 5
+	for (var i = 0; i < n-1; i++) {
+		for (var j = i+1; j < n; j++) {
+			if (Math.abs(agents[i].pos - agents[j].pos) < R) {
+				agents[i].nbhd.push (agents[j]);
+				agents[j].nbhd.push (agents[i]);
+			} 
+		}
+	}
+
+}
+
+init();
+animate();
+
+function init() {
+	scene = new THREE.Scene();
+
+	camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 1, 1000);
+	camera.position.z = 500;
+	scene.add(camera);
+
+	var gridXZ = new THREE.GridHelper(200, 20);
+	gridXZ.setColors(new THREE.Color(0xff0000), new THREE.Color(0xffffff));
+	scene.add(gridXZ);
+
+	renderer = new THREE.WebGLRenderer();
+	renderer.setSize(window.innerWidth, window.innerHeight);
+	renderer.setClearColor(0x888888);
+
+	controls = new THREE.OrbitControls(camera, renderer.domElement);
+	document.body.appendChild(renderer.domElement);
+
+	//////////////////////
+/////////////////////////////////////////////////////////////
+	var obs=new THREE.CylinderGeometry(obRad,obRad,2,20);
+	
+	obstacle=new THREE.Mesh(obs,new THREE.MeshBasicMaterial({color: 0xffffff}));
+	obstacle1=new THREE.Mesh(obs,new THREE.MeshBasicMaterial({color: 0xffffff}));
+	obstacle2=new THREE.Mesh(obs,new THREE.MeshBasicMaterial({color: 0xffffff}));
+	obstacle3=new THREE.Mesh(obs,new THREE.MeshBasicMaterial({color: 0xffffff}));
+	
+	obstacle.position.set(100,0,-80);
+	obstacle1.position.set(-40,0,60);
+	obstacle2.position.set(70,0,20);
+	obstacle3.position.set(-70,0,-40);
+	
+	scene.add(obstacle);
+	scene.add(obstacle1);
+	scene.add(obstacle2);
+	scene.add(obstacle3);
+	
+	/////////////////////////////////////////////////////////////
+	var geometry = new THREE.BoxGeometry(15, 2, 5);
+	var material = new THREE.MeshNormalMaterial();
+	var box = new THREE.Mesh(geometry, material);
+	//scene.add(box);
+	agents.push(new Agent(box, new THREE.Vector3(80, 0, 50)));
+	agents.push(new Agent(box, new THREE.Vector3(40, 0, 0)));
+	agents.push(new Agent(box, new THREE.Vector3(100, 0, -30)));
+	agents.push(new Agent(box, new THREE.Vector3(-100, 0, -30)));
+	agents.push(new Agent(box, new THREE.Vector3(-100, 0, 70)));
+	agents.push(new Agent(box, new THREE.Vector3(0, 0, -80)));
+	agents.push(new Agent(box, new THREE.Vector3(30, 0, 90)));
+	agents.push(new Agent(box, new THREE.Vector3(-20, 0, -180)));
+	computeNbhd();
+	var i=0;
+	//agents[0].vel=agents[0].separation()+agents[0].alignment();
+	/*for(var i=0;i<agents.length;i++){
+		agents[i].cohesion();
+		agents[i].separation();
+		//agents[i].alignment();
+	}*/
+	//agents[i].cohesion();
+	//agents[i].separation();
+	//agents[i].alignment();
+	for(var i=0;i<agents.length;i++){
+		scene.add(agents[i].mesh);
+	}
+	
+	
+	
+	plane = new THREE.Mesh (new THREE.PlaneGeometry(400,400), new THREE.MeshBasicMaterial({visible:false}));
+	scene.add (plane);
+	plane.rotation.x = -Math.PI/2;
+	pickables = [plane];
+
+
+	puck = new THREE.Mesh(new THREE.CylinderGeometry(4, 4, 2, 20), new THREE.MeshBasicMaterial({color: 0x000000}));
+
+	scene.add(puck);
+	raycaster = new THREE.Raycaster();
+	document.addEventListener('mousedown', onDocumentMouseDown, false);
+
+	//target.set(50, 0, 50)
+	//agent.setTarget(target);
+
+}
+function onDocumentMouseDown(event) {
+
+	event.preventDefault();
+	mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+	mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+
+	// find intersections
+	raycaster.setFromCamera(mouse, camera);
+	var intersects = raycaster.intersectObjects(pickables);
+	if (intersects.length > 0) {
+		puck.position.copy (intersects[0].point);
+	}
+
+}
+
+
+function animate() {
+	var dt = clock.getDelta(); // delta-time
+
+	//angle += targetOmega * dt;
+
+	//target.set(100 * Math.cos(angle), 0, 100 * Math.sin(angle));
+
+	//puck.position.copy(target);
+		
+	//agents[i].alignment();
+	for(var i=0;i<agents.length;i++){
+		agents[i].update(dt);
+		agents[i].setTarget(puck.position);
+	}
+	
+	
+	controls.update();
+	requestAnimationFrame(animate);
+	render();
+}
+
+function render() {
+  renderer.render(scene, camera);
+}
+</script>
+</body>
+
+</html>
+
