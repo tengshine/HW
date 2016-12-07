@@ -162,30 +162,7 @@ Agent.prototype = {
 	},
 	// set pos as the average of my nbhd.pos
 	separation: function(){
-		var sumX=0,sumY=0,sumZ=0;
-		var X=0,Y=0,Z=0;
-		var sx,sy,sz;
-		var avelX,avelY;
-		for(var i=0;i<this.nbhd.length;i++){
-			sx=this.pos.x-this.nbhd[i].pos.x;
-			sy=this.pos.y-this.nbhd[i].pos.y;
-			sz=this.pos.z-this.nbhd[i].pos.z;
-			if(sx<0)sx*=-1;
-			if(sy<0)sy*=-1;
-			if(sz<0)sz*=-1;
-			sumX+=sx;
-			sumY+=sy;
-			sumZ+=sz;
-		}
 		
-		for(var i=0;i<this.nbhd.length;i++){
-			X+=1/(this.pos.x-this.nbhd[i].pos.x);
-			Y+=1/(this.pos.y-this.nbhd[i].pos.y);
-			Z+=1/(this.pos.z-this.nbhd[i].pos.z);
-		}
-		this.pos.x=this.pos.x+X*sumX/this.nbhd.length;
-		this.pos.y=this.pos.y+X*sumY/this.nbhd.length;
-		this.pos.z=this.pos.z+X*sumZ/this.nbhd.length;
 		//this.pos.x=aposX;
 		//this.pos.y=aposY;
 		
