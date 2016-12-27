@@ -1,0 +1,530 @@
+<!DOCTYPE html>
+
+<html>
+
+<head>
+<style>
+
+#info {
+	position: absolute;
+	top: 0px;
+	width: 100%;
+	padding: 10px;
+	text-align: center;
+	color: #ffff00
+}
+
+body {
+	overflow: hidden;
+}
+
+</style>
+</head>
+
+<body> 
+
+<div id="info">hw5</div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r78/three.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r70/three.min.js"></script>
+<script src="https://jyunming-chen.github.io/tutsplus/js/KeyboardState.js"></script>
+<script src="https://threejs.org/examples/js/controls/OrbitControls.js"></script>
+
+<script src="https://dl.dropboxusercontent.com/u/3587259/Code/Threejs/OrbitControls.js"></script>
+
+
+<script>
+
+var camera, scene, renderer, controls;
+var vehicle;
+
+var raycaster = new THREE.Raycaster();
+var mouse = new THREE.Vector2();
+var pickables = [];
+
+var pos, vel, force;
+var angle = 0;
+
+var mass = 1;
+var clock = new THREE.Clock();
+var puck;
+var obRad = 40;
+
+var target = new THREE.Vector3();
+var maxSpeed = 60;
+var maxForce = 20;
+////////////////////////
+var stArray = [];
+var baseS = 0,
+	baseT = 0;
+var counter = 0;
+var texMat;
+var bomb=1;
+init();
+animate();
+
+function buildPlane() {
+	var plane = new THREE.Object3D();
+
+	var geometry = new THREE.Geometry();
+	geometry.vertices.push(new THREE.Vector3(30, 0, 0));
+	geometry.vertices.push(new THREE.Vector3(0, 10, 0));
+	geometry.vertices.push(new THREE.Vector3(0, 0, 10));
+	geometry.vertices.push(new THREE.Vector3(0, 0, -10));
+	var face;
+	face = new THREE.Face3(0, 1, 2);
+	geometry.faces.push(face);
+	face = new THREE.Face3(1, 3, 2);
+	geometry.faces.push(face);
+	face = new THREE.Face3(3, 1, 0);
+	geometry.faces.push(face);
+	face = new THREE.Face3(2, 3, 0);
+	geometry.faces.push(face);
+
+	geometry.computeBoundingSphere();
+	geometry.computeFaceNormals();
+	geometry.computeVertexNormals();
+
+	mesh = new THREE.Mesh(geometry, new THREE.MeshNormalMaterial({
+		wireframe: false
+	}));
+	plane.add(mesh);
+
+	return plane;
+}//飛機
+
+function setUpStArray() {
+	for (var i = 0; i < 5; i++) {
+		var row = [];
+		for (var j = 0; j < 9; j++)
+			row.push(new THREE.Vector2(j * 0.125, 1 - 0.25 * i));
+		stArray.push(row);
+	}
+}
+
+function buildSprite() {
+
+	var geometry = new THREE.Geometry();
+	geometry.vertices.push(
+		new THREE.Vector3(-150, -150, 0),
+		new THREE.Vector3(150, -150, 0),
+		new THREE.Vector3(150, 150, 0),
+		new THREE.Vector3(-150, 150, 0)
+	);
+
+	var face;
+	face = new THREE.Face3(0, 1, 2);
+	geometry.faces.push(face);
+	face = new THREE.Face3(0, 2, 3);
+	geometry.faces.push(face);
+
+	geometry.faceVertexUvs[0].push([stArray[1][0], stArray[1][1], stArray[0][1]]);
+	geometry.faceVertexUvs[0].push([stArray[1][0], stArray[0][1], stArray[0][0]]);
+
+	geometry.computeBoundingSphere();
+	geometry.computeFaceNormals();
+	geometry.computeVertexNormals();
+
+	sprite = new THREE.Mesh(geometry, texMat);
+	scene.add(sprite);
+
+	console.log ('sprite added');
+
+}//爆炸
+
+
+
+function init() {
+	//場景
+	scene = new THREE.Scene();
+	camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 1, 1000);
+	camera.position.z = 500;
+	scene.add(camera);
+	/*
+	// add my cylinder
+	var geometry = new THREE.BoxGeometry(15, 2, 5);
+	var material = new THREE.MeshNormalMaterial();
+	vehicle = new THREE.Mesh(geometry, material);
+	scene.add(vehicle);
+	*/
+	var gridXZ = new THREE.GridHelper(200, 20);
+	gridXZ.setColors(new THREE.Color(0xff0000), new THREE.Color(0xffffff));
+	scene.add(gridXZ);
+
+	renderer = new THREE.WebGLRenderer();
+	renderer.setSize(window.innerWidth, window.innerHeight);
+	renderer.setClearColor(0x888888);
+
+	controls = new THREE.OrbitControls(camera, renderer.domElement);
+	document.body.appendChild(renderer.domElement);
+	//////////////////////
+	//爆炸
+	setUpStArray();
+	// loading texture from imgur.com
+	THREE.ImageUtils.crossOrigin = '';
+	texture = THREE.ImageUtils.loadTexture('https://i.imgur.com/6ePTx6p.png');
+	//texture.wrapS = THREE.RepeatWrapping;
+	/*
+	// instantiate a loader
+	var loader = new THREE.TextureLoader();
+
+	// load a resource
+	loader.load(
+	// resource URL
+	'https://i.imgur.com/6ePTx6p.png',
+	// Function when resource is loaded
+	function(texture) {
+	// do something with the texture
+	// Plane with default texture coordinates [0,1]x[0,1]
+	texMat = new THREE.MeshBasicMaterial({
+	map: texture,
+	transparent: true, // cutout texture: set transparent: true
+	side: THREE.DoubleSide
+	});
+	//var floor = new THREE.Mesh(new THREE.PlaneGeometry(80, 80), texMat);
+	//scene.add(floor);
+	texture.wrapS = THREE.RepeatWrapping;
+	buildSprite();
+	},
+	// Function called when download progresses
+	function(xhr) {
+	console.log((xhr.loaded / xhr.total * 100) + '% loaded');
+	},
+	// Function called when download errors
+	function(xhr) {
+	console.log('An error happened');
+	}
+	);
+	*/
+	////////////////////////////////////////////////////////
+	// setting up texMat
+	var texMat = new THREE.MeshBasicMaterial({
+		map: texture,
+		transparent: true,  // cutout texture: set transparent: true
+		side: THREE.DoubleSide
+	});
+
+	var geometry = new THREE.Geometry();
+	geometry.vertices.push(
+		new THREE.Vector3(-150, -150, 0),
+		new THREE.Vector3(150, -150, 0),
+		new THREE.Vector3(150, 150, 0),
+		new THREE.Vector3(-150, 150, 0)
+	);
+
+	var face;
+	face = new THREE.Face3(0, 1, 2);
+	geometry.faces.push(face);
+	face = new THREE.Face3(0, 2, 3);
+	geometry.faces.push(face);
+
+	geometry.faceVertexUvs[0].push([stArray[1][0], stArray[1][1], stArray[0][1]]);
+	geometry.faceVertexUvs[0].push([stArray[1][0], stArray[0][1], stArray[0][0]]);
+
+	geometry.computeBoundingSphere();
+	geometry.computeFaceNormals();
+	geometry.computeVertexNormals();
+
+	sprite = new THREE.Mesh(geometry, texMat);
+	scene.add(sprite);
+	sprite.position.set(-190,0,190);
+  //////////////////////
+	//障礙物-球
+
+	var ob = new THREE.Mesh (new THREE.SphereGeometry (obRad,32,32),
+	new THREE.MeshNormalMaterial());
+	scene.add (ob);
+	ob.position.set(-30,160,-80);
+	var ob1 = new THREE.Mesh (new THREE.SphereGeometry (obRad,32,32),
+	new THREE.MeshNormalMaterial());
+	scene.add (ob1);
+	ob1.position.set(-30,190,40);
+	var ob2 = new THREE.Mesh (new THREE.SphereGeometry (obRad,32,32),
+	new THREE.MeshNormalMaterial());
+	scene.add (ob2);
+	ob2.position.set(30,100,60);
+	var ob3 = new THREE.Mesh (new THREE.SphereGeometry (obRad,32,32),
+	new THREE.MeshNormalMaterial());
+	scene.add (ob3);
+	ob3.position.set(-80,100,130);
+	
+	//可點擊面
+	/*plane = new THREE.Mesh(new THREE.PlaneGeometry(400, 400, 10, 10), new THREE.MeshBasicMaterial({
+		wireframe: true,
+		side: THREE.DoubleSide,
+		color: 0xffffff
+	}));
+	scene.add(plane);
+	//plane.position.x = -150;
+	plane.rotation.x = -Math.PI / 2;
+
+	/*var plane2 = plane.clone();
+	scene.add(plane2);
+	plane2.position.x = 150;
+	plane2.position.y = 100;
+	/////////////////////////////
+	plane.rotation.x = -Math.PI / 2;
+	//點擊
+	pickables = [plane];
+
+	puck = new THREE.Mesh(new THREE.CylinderGeometry(10, 10, 2, 20), new THREE.MeshNormalMaterial());
+	scene.add(puck);
+
+	document.addEventListener('mousedown', onDocumentMouseDown, false);
+	*/
+	//////////////////////////////////////////////////
+	
+	//飛機
+	vehicle = buildPlane();
+	pos = new THREE.Vector3();
+	vel = new THREE.Vector3(120,100,0);
+	force = new THREE.Vector3();
+
+	
+	//scene.add(vehicle);
+
+	//document.body.appendChild(renderer.domElement);
+	
+	vehicle.rotation.y = 0;//-Math.PI/4;
+	vehicle.rotation.z = Math.PI/6;
+	vehicle.position.set (-280,0,-280);
+
+	pos.copy (vehicle.position);
+	//vel.applyEuler (vehicle.rotation);
+
+	scene.add (vehicle);
+	//console.log (obCen);
+}
+
+
+function computeForce() {
+	force = target.clone().sub(pos).setLength(maxSpeed).sub(vel);
+	
+	// collision avoidance
+	// (for each obstacle)
+	//1/////////////////////////////
+	var obCen= new THREE.Vector3(-30,160,-80);
+	var tmp = obCen.clone().sub(pos);
+	var tmpProj = tmp.clone().projectOnVector(vel);
+	
+	if (tmp.dot(vel) > 0) {
+		if (tmpProj.clone().sub(tmp).length() < obRad + 5) {
+			if (tmpProj.length() < 5 * vel.length()) {
+				//console.log('block & close');
+				//force = target.clone().sub(pos).setLength(maxSpeed).sub(vel);
+				force.add(tmpProj.clone().sub(tmp).multiplyScalar(2));
+				
+			}
+		}
+	}
+	//2/////////////////////////////
+	var obCen1= new THREE.Vector3(-30,190,40);
+	var tmp1 = obCen1.clone().sub(pos);
+	var tmpProj1 = tmp1.clone().projectOnVector(vel);
+	
+	if (tmp1.dot(vel) > 0) {
+		if (tmpProj1.clone().sub(tmp1).length() < obRad + 5) {
+			if (tmpProj1.length() < 5 * vel.length()) {
+				//console.log('block & close');
+				//force = target.clone().sub(pos).setLength(maxSpeed).sub(vel);
+				force.add(tmpProj1.clone().sub(tmp1).multiplyScalar(2));
+			}
+		}
+	}
+	
+	//3/////////////////////////////
+	var obCen2= new THREE.Vector3(30,100,60);
+	var tmp2 = obCen2.clone().sub(pos);
+	var tmpProj2 = tmp2.clone().projectOnVector(vel);
+	
+	if (tmp2.dot(vel) > 0) {
+		if (tmpProj2.clone().sub(tmp2).length() < obRad + 5) {
+			if (tmpProj2.length() < 5 * vel.length()) {
+				//console.log('block & close');
+				//force = target.clone().sub(pos).setLength(maxSpeed).sub(vel);
+				force.add(tmpProj2.clone().sub(tmp2).multiplyScalar(2));
+			}
+		}
+	}
+	//4/////////////////////////////
+	var obCen3= new THREE.Vector3(-80,100,130);
+	var tmp3 = obCen3.clone().sub(pos);
+	var tmpProj3 = tmp3.clone().projectOnVector(vel);
+	
+	if (tmp3.dot(vel) > 0) {
+		if (tmpProj3.clone().sub(tmp3).length() < obRad + 5) {
+			if (tmpProj3.length() < 5 * vel.length()) {
+				//console.log('block & close');
+				//force = target.clone().sub(pos).setLength(maxSpeed).sub(vel);
+				force.add(tmpProj3.clone().sub(tmp3).multiplyScalar(2));
+			}
+		}
+	}
+}//避開障礙物
+
+function onWindowResize() {
+	camera.aspect = window.innerWidth / window.innerHeight;
+	camera.updateProjectionMatrix();
+	renderer.setSize(window.innerWidth, window.innerHeight);
+}
+
+function spriteAnimate() {
+	var geometry = sprite.geometry;
+	var st0 = stArray[baseS + 1][baseT];
+	var st1 = stArray[baseS + 1][baseT + 1];
+	var st2 = stArray[baseS][baseT + 1];
+	var st3 = stArray[baseS][baseT];
+
+	geometry.faceVertexUvs[0] = [];
+	geometry.faceVertexUvs[0].push([st0, st1, st2]);
+	geometry.faceVertexUvs[0].push([st0, st2, st3]);
+	geometry.uvsNeedUpdate = true;
+
+	baseT = (baseT + 1) % 8;
+	if (baseT === 0) {
+		baseS = (baseS + 1) % 4;
+	}
+}//爆炸動畫
+
+
+function vectorClamp(v, vMax) {
+	if (v.length() > vMax)
+		v.setLength(vMax);
+}
+
+function building(){
+	var puck = new THREE.Mesh (new THREE.CylinderGeometry (15,15,60,32), new THREE.MeshNormalMaterial());
+	//scene.add (puck);
+	puck.position.set (-180,30,180);
+	scene.add(puck);
+	
+}//目標
+
+/*function onDocumentMouseDown(event) {
+	event.preventDefault();
+	mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+	mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+
+	// find intersections
+	raycaster.setFromCamera(mouse, camera);
+	var intersects = raycaster.intersectObjects(pickables);
+	if (intersects.length > 0) {
+		puck.position.copy(intersects[0].point);
+		target.copy(puck.position);
+	}
+
+}*/
+
+function animate() {
+		
+	if(bomb===1){
+		//console.log(bomb);
+		building();
+		
+	}
+	var dt = clock.getDelta(); // delta-time
+	// if reach 50, move to target (-180,0,180)
+	if (target === null && pos.y > 50) {
+		// start seek
+		target = new THREE.Vector3 (-100, 50, -180);
+		
+	}
+
+	if (target !== null && target.distanceTo (pos) < 100) {
+		// start seek
+		target = new THREE.Vector3 (-180, 0, 180);
+		force = target.clone().sub(pos).setLength(maxSpeed).sub(vel);
+		//computeForce();
+	}
+
+	if (target !== null && target.distanceTo (pos) < 30) {
+	
+		vel.set (0,0,0);
+		target = null;
+		force.set (0,0,0);
+		console.log ('bomb');
+		bomb--;
+	}//撞到後停
+	if (target !== null && pos.y > 150){
+		target = new THREE.Vector3 (-180, 0, 180);
+		
+		force = target.clone().sub(pos).setLength(maxSpeed).sub(vel);
+		computeForce();
+	}
+	
+	vectorClamp (force, maxForce);
+	vel.add (force.clone().multiplyScalar(dt));
+	vectorClamp (vel, maxSpeed);
+	pos.add (vel.clone().multiplyScalar(dt));
+
+	vehicle.position.copy (pos);
+
+	// set orientation
+	var quaternion = new THREE.Quaternion();
+	var localDir = new THREE.Vector3(1,0,0);
+	var angle = localDir.angleTo (vel);
+	var axis = new THREE.Vector3();
+	axis.crossVectors (localDir, vel).normalize();
+	quaternion.setFromAxisAngle (axis,angle);
+	vehicle.quaternion.copy (quaternion);/**/
+	////////////////////////////////////////
+	/*vectorClamp(force, maxForce);
+	vel.add(force.clone().multiplyScalar(dt / mass));
+	vectorClamp(vel, maxSpeed);
+	pos.add(vel.clone().multiplyScalar(dt));
+
+	if (vel.length() > 0.001) {
+		angle = Math.atan2(-vel.z, vel.x);
+	}*/
+	/*
+	rolling ...
+	// copy to vehicle
+	vehicle.position.copy(pos);
+	// set orientation
+	var quaternion = new THREE.Quaternion();
+	var localDir = new THREE.Vector3(1,0,0);
+	var angle = localDir.angleTo (vel);
+	var axis = new THREE.Vector3();
+	axis.crossVectors (localDir, vel).normalize();
+	quaternion.setFromAxisAngle (axis,angle);
+	vehicle.quaternion.copy (quaternion);
+	*/
+
+	// set orientation
+	/*
+	var localX = vel.clone().normalize();
+	var localY = new THREE.Vector3(0, 1, 0);
+	var tmp = localY.clone().projectOnVector(localX);
+	localY.sub(tmp).normalize();
+	var localZ = new THREE.Vector3();
+	localZ.crossVectors(localX, localY);
+
+	vehicle.matrix.makeBasis(localX, localY, localZ);
+	vehicle.matrix.setPosition(pos);
+	vehicle.matrixAutoUpdate = false;*/
+	/////////////////////////////////////
+	
+	
+	if(bomb<=0){
+		counter++;
+		sprite.lookAt (camera.position);
+
+		if (counter % 8 === 0)
+			spriteAnimate();
+		bomb--;
+	}
+	
+	//console.log (vel);
+	controls.update();
+	requestAnimationFrame(animate);
+	render();
+}
+
+function render() {
+	renderer.render(scene, camera);
+}
+
+
+</script>
+</body>
+
+</html>
