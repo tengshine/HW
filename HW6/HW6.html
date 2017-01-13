@@ -434,10 +434,6 @@ function update() {
   angle += wheelradius/100/8;
   angle1 += (1/8);
   
-  
-  //讓他走torso.position.set (100*Math.cos(angle), 41, -100*Math.sin(angle));
-  //torso.rotation.y = angle + Math.PI/2;
-  
   var s = ((t - ts)%T)/T;
   
   for (var i = 0; i < Lkeys.length; i++) {
@@ -485,8 +481,6 @@ function update() {
   wheel2.rotation.z=-angle1 + Math.PI/2;
   torso.position.set(100*Math.cos(angle), 41, -100*Math.sin(angle));
   torso.rotation.y = angle + Math.PI/2;
-  
-  
   
 }
 
